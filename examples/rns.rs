@@ -11,7 +11,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // Setup the device
-    let d = block_on(Device::open(VID, PID))?;
+    let mut d = block_on(Device::open(VID, PID)).unwrap();
     println!("{d}");
+    // Perform a query
+    let bytes = block_on(async {
+        d.write_raw("*RST".as_bytes()).await.unwrap();
+        d.write_raw("INIT".as_bytes()).await.unwrap();
+        d.query_raw("FETCH?".as_bytes()).await
+    })?;
+    let s = String::from_utf8(bytes).unwrap();
+    dbg!(s);
     Ok(())
 }
