@@ -47,7 +47,7 @@ pub enum Error {
     #[error("Returned data was invalid")]
     BadData,
     #[error("Returned string was not valid UTF8")]
-    BadString(#[from] std::string::FromUtf8Error)
+    BadString(#[from] std::string::FromUtf8Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -566,22 +566,50 @@ impl Device {
             return Err(Error::ListenOnly);
         }
 
-        // Prepare request payload
-        let payload = BulkMessageHeader {
-            tag: self.tag,
-            msg: BulkMessage::RequestDevDepMsgIn {
-                transfer_size: self.max_packet_size as u32,
-                term_char: None, //TODO: Fixme
-            },
+        let mut buf = vec![];
+
+        loop {
+            // Prepare request payload
+            let payload = BulkMessageHeader {
+                tag: self.tag,
+                msg: BulkMessage::RequestDevDepMsgIn {
+                    transfer_size: self.max_packet_size as u32,
+                    term_char: None, //TODO: Fixme
+                },
+            }
+            .pack();
+            self.inc_tag();
+
+            // Send it
+            self.bulk_out(payload).await?;
+
+            // Read the response
+            let resp = self.bulk_in().await?;
+            let hdr = BulkMessageHeader::try_from_bytes(&resp[0..HEADER_SIZE])?;
+            if let BulkMessage::DevDepMsgIn {
+                transfer_size, eom, ..
+            } = hdr.msg
+            {
+                // Copy out everything
+                buf.extend_from_slice(&resp[HEADER_SIZE..]);
+                // Keep requesting data until we get all of transfer_size
+                while buf.len() < transfer_size.try_into().unwrap() {
+                    // Get another chunk
+                    let mut resp = self.bulk_in().await?;
+                    // Copy out all of this
+                    buf.append(&mut resp);
+                }
+
+                // Now look at EOM since we have all the data of the transfer
+                if eom {
+                    break;
+                }
+            } else {
+                return Err(Error::BadData);
+            }
         }
-        .pack();
-        self.inc_tag();
 
-        // Send it
-        self.bulk_out(payload).await?;
-
-        // Finally, wait for the response
-        self.listen_raw().await
+        Ok(buf)
     }
 
     /// Explicitly request a string from the device
