@@ -501,6 +501,11 @@ impl Device {
         Ok(())
     }
 
+    /// Write a string to the device
+    pub async fn write<T: AsRef<str>>(&mut self, s: T) -> Result<()> {
+        self.write_raw(s.as_ref().as_bytes()).await
+    }
+
     /// Listen to bytes from the device
     ///
     /// NOTE: This will await forever if the device wasn't setup to send bytes
@@ -593,8 +598,9 @@ impl Device {
         self.read_raw().await
     }
 
+    /// Perform a query for a string from the device
     pub async fn query<T: AsRef<str>>(&mut self, s: T) -> Result<String> {
-        self.write_raw(s.as_ref().as_bytes()).await?;
+        self.write(s).await?;
         self.read().await
     }
 }
