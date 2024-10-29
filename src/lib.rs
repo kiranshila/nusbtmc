@@ -46,6 +46,8 @@ pub enum Error {
     Unconfigured(#[from] nusb::descriptors::ActiveConfigurationError),
     #[error("Returned data was invalid")]
     BadData,
+    #[error("Returned string was not valid UTF8")]
+    BadString(#[from] std::string::FromUtf8Error)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -541,6 +543,14 @@ impl Device {
         Ok(buf)
     }
 
+    /// Listens for a string from the device
+    ///
+    /// NOTE: This will await forever if the device wasn't configured to send anything
+    pub async fn listen(&mut self) -> Result<String> {
+        let raw = self.listen_raw().await?;
+        Ok(String::from_utf8(raw)?)
+    }
+
     /// Explicitly read bytes from the device
     pub async fn read_raw(&mut self) -> Result<Vec<u8>> {
         // Not supported on "listen-only" devices
@@ -569,12 +579,23 @@ impl Device {
         self.listen_raw().await
     }
 
+    /// Explicitly request a string from the device
+    pub async fn read(&mut self) -> Result<String> {
+        let raw = self.read_raw().await?;
+        Ok(String::from_utf8(raw)?)
+    }
+
     /// Perform a query for bytes from the device
     pub async fn query_raw(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         // Write the bytes
         self.write_raw(data).await?;
         // Then read
         self.read_raw().await
+    }
+
+    pub async fn query<T: AsRef<str>>(&mut self, s: T) -> Result<String> {
+        self.write_raw(s.as_ref().as_bytes()).await?;
+        self.read().await
     }
 }
 
