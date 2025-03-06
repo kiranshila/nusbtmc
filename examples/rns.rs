@@ -2,7 +2,7 @@ use futures_lite::future::block_on;
 use nusbtmc::Device;
 
 const VID: u16 = 0x0aad;
-const PID: u16 = 0x0151;
+const PID: u16 = 0x0150;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup logging

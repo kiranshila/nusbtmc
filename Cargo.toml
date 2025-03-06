@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bitflags = "2"
 nusb = "0.1"
-thiserror = "1"
+thiserror = "2"
 tracing = "0.1"
 
 [dev-dependencies]
